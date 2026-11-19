@@ -1,0 +1,16 @@
+{
+  "conv_id": "SAMPLE-001",
+  "condition": "EN_HI_EN",
+  "model": "mock-model",
+  "rule_id": "R1",
+  "turn": 4,
+  "verdict": "PASS",
+  "method": "static",
+  "reply_lang": "hi",
+  "reason": "",
+  "static_result": "PASS",
+  "judge_result": "",
+  "judge_model": "",
+  "rubric_version": "",
+  "escalated": false
+}

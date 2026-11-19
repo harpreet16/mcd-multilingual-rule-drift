@@ -1,0 +1,42 @@
+{
+  "conv_id": "SAMPLE-001",
+  "condition": "EN_HI_EN",
+  "turns": [
+    {
+      "n": 1,
+      "lang": "en",
+      "text": "For this whole chat, please start every answer with the phrase \"Let's talk about that.\"",
+      "side_question": false
+    },
+    {
+      "n": 2,
+      "lang": "hi",
+      "text": "एक छोटी कॉफ़ी शॉप के लिए अच्छा नाम क्या हो सकता है?",
+      "side_question": false
+    },
+    {
+      "n": 3,
+      "lang": "hi",
+      "text": "बीच में एक छोटा सवाल: पेपर क्लिप का रोज़मर्रा में एक उपयोग क्या है?",
+      "side_question": true
+    },
+    {
+      "n": 4,
+      "lang": "hi",
+      "text": "एक छोटी कॉफ़ी शॉप में आमतौर पर कितने कर्मचारी चाहिए होते हैं?",
+      "side_question": false
+    },
+    {
+      "n": 5,
+      "lang": "en",
+      "text": "Please keep your next answer formal in tone. How do I set the menu prices?",
+      "side_question": false
+    },
+    {
+      "n": 6,
+      "lang": "en",
+      "text": "Thanks. What should the shop do about slow weekdays?",
+      "side_question": false
+    }
+  ]
+}

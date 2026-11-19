@@ -1,0 +1,111 @@
+{
+  "id": "SAMPLE-001",
+  "source": "made up for tests",
+  "turns_en": [
+    {
+      "n": 1,
+      "lang": "en",
+      "text": "For this whole chat, please start every answer with the phrase \"Let's talk about that.\"",
+      "side_question": false
+    },
+    {
+      "n": 2,
+      "lang": "en",
+      "text": "What is a good name for a small coffee shop?",
+      "side_question": false
+    },
+    {
+      "n": 3,
+      "lang": "en",
+      "text": "Quick side question: what is one everyday use for a paper clip?",
+      "side_question": true
+    },
+    {
+      "n": 4,
+      "lang": "en",
+      "text": "How many staff does a small coffee shop usually need?",
+      "side_question": false
+    },
+    {
+      "n": 5,
+      "lang": "en",
+      "text": "Please keep your next answer formal in tone. How do I set the menu prices?",
+      "side_question": false
+    },
+    {
+      "n": 6,
+      "lang": "en",
+      "text": "Thanks. What should the shop do about slow weekdays?",
+      "side_question": false
+    }
+  ],
+  "turns_hi": [
+    {
+      "n": 1,
+      "lang": "hi",
+      "text": "इस पूरी बातचीत में, कृपया हर जवाब की शुरुआत \"Let's talk about that.\" वाक्यांश से करें।",
+      "side_question": false
+    },
+    {
+      "n": 2,
+      "lang": "hi",
+      "text": "एक छोटी कॉफ़ी शॉप के लिए अच्छा नाम क्या हो सकता है?",
+      "side_question": false
+    },
+    {
+      "n": 3,
+      "lang": "hi",
+      "text": "बीच में एक छोटा सवाल: पेपर क्लिप का रोज़मर्रा में एक उपयोग क्या है?",
+      "side_question": true
+    },
+    {
+      "n": 4,
+      "lang": "hi",
+      "text": "एक छोटी कॉफ़ी शॉप में आमतौर पर कितने कर्मचारी चाहिए होते हैं?",
+      "side_question": false
+    },
+    {
+      "n": 5,
+      "lang": "hi",
+      "text": "कृपया अपना अगला जवाब औपचारिक लहजे में रखें। मैं मेनू की कीमतें कैसे तय करूँ?",
+      "side_question": false
+    },
+    {
+      "n": 6,
+      "lang": "hi",
+      "text": "धन्यवाद। धीमे सप्ताह के दिनों में दुकान को क्या करना चाहिए?",
+      "side_question": false
+    }
+  ],
+  "rules": [
+    {
+      "id": "R1",
+      "conv_id": "SAMPLE-001",
+      "text": "Start every answer with \"Let's talk about that.\"",
+      "stated_turn": 1,
+      "from_turn": 2,
+      "method": "static",
+      "to_turn": null,
+      "check": {
+        "type": "starts_with",
+        "text": "Let's talk about that."
+      },
+      "question": "",
+      "rubric": "",
+      "language_scope": "any"
+    },
+    {
+      "id": "R2",
+      "conv_id": "SAMPLE-001",
+      "text": "Keep the tone formal.",
+      "stated_turn": 5,
+      "from_turn": 5,
+      "method": "judge",
+      "to_turn": 6,
+      "check": {},
+      "question": "Is the tone of the reply formal?",
+      "rubric": "",
+      "language_scope": "any"
+    }
+  ]
+}

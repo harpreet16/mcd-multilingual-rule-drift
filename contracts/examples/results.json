@@ -1,0 +1,21 @@
+{
+  "models": {
+    "mock-model": {
+      "EN_HI_EN": {
+        "conversations": 10,
+        "clean_conversations": 5,
+        "recovered_conversations": 2,
+        "lost_conversations": 2,
+        "unknown_conversations": 1,
+        "slip_rate": 0.44,
+        "loss_rate": 0.22,
+        "rules_kept": 14,
+        "rules_recovered": 3,
+        "rules_lost": 3,
+        "rule_turns_graded": 62,
+        "rule_turns_ungraded": 4,
+        "pass_rate": 0.84
+      }
+    }
+  }
+}

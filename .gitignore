@@ -1,0 +1,15 @@
+# Secrets: never commit keys or tokens
+.env
+*.key
+*token*.txt
+
+# Run outputs can be large and are rebuilt by the pipeline
+runs/
+outputs/
+*.log
+
+# Python and editor files
+__pycache__/
+*.pyc
+.venv/
+.DS_Store

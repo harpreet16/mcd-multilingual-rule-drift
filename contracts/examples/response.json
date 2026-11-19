@@ -1,0 +1,28 @@
+{
+  "conv_id": "SAMPLE-001",
+  "condition": "EN_HI_EN",
+  "model": "mock-model",
+  "replies": [
+    "Let's talk about that. A friendly name could be The Daily Cup.",
+    "Let's talk about that. यह एक अच्छा नाम हो सकता है: डेली कप।",
+    "A paper clip holds papers together.",
+    "Let's talk about that. दो या तीन कर्मचारी आमतौर पर काफ़ी होते हैं।",
+    "Let's talk about that. Prices are best set from your costs plus a fair margin.",
+    "Let's talk about that. Offer a small discount on quiet weekday mornings."
+  ],
+  "cut_off": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+  ],
+  "settings": {
+    "backend": "mock",
+    "model_id": "mock-model",
+    "temperature": 0,
+    "max_tokens": 4096
+  },
+  "finished_at": "2026-01-01 00:00:00"
+}
