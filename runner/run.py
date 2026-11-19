@@ -31,6 +31,14 @@ def play_variant(variant, chat, saved_replies=(), saved_cut_off=(), on_turn=None
     return replies, cut_off
 
 
+def _partial_key(variant, model, settings):
+    """The key for a half-finished conversation in partial.json.
+
+    It includes the settings, so replies made with old settings are never mixed with new ones.
+    """
+    return f"{variant.conv_id}|{variant.condition}|{model}|{json.dumps(settings, sort_keys=True)}"
+
+
 def _finished(responses_path, model, settings):
     """The (conv_id, condition) pairs already saved by this model with these exact settings."""
     if not os.path.exists(responses_path):
@@ -61,7 +69,7 @@ def run_all(variants, chat, model, settings, out_folder, workers=4, log=print):
     def work(variant):
         if stop.is_set():
             return variant, None
-        key = f"{variant.conv_id}|{variant.condition}|{model}"
+        key = _partial_key(variant, model, settings)
         saved = partial.get(key, {"replies": [], "cut_off": []})
         # A reply that was cut off is asked again, so keep only the turns before the first cut-off.
         keep = next((i for i, cut in enumerate(saved["cut_off"]) if cut), len(saved["replies"]))
@@ -111,6 +119,7 @@ def status(variants, model, settings, out_folder):
     done = _finished(os.path.join(out_folder, "responses.jsonl"), model, settings)
     partial_path = os.path.join(out_folder, "partial.json")
     partial = json.load(open(partial_path, encoding="utf-8")) if os.path.exists(partial_path) else {}
-    half_way = [k for k in partial if k.endswith(f"|{model}")]
+    keys = {_partial_key(v, model, settings) for v in variants}
+    half_way = [k for k in partial if k in keys]
     return {"total": len(variants), "finished": len(done), "half_way": len(half_way),
             "to_do": len(variants) - len(done)}

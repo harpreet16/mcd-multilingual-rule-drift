@@ -3,11 +3,13 @@
   python3 -m runner --model llama31_8b --variants variants.jsonl --out runs/llama31_8b
   python3 -m runner --model mock --variants variants.jsonl --out runs/mock --limit 3
   python3 -m runner --model llama31_8b --variants variants.jsonl --out runs/llama31_8b --status
+  python3 -m runner --model mock --variants variants.jsonl --out runs/mock --conditions EN EN_HI_EN --conv-ids S01 S02
 """
 import argparse
 import os
 import sys
 
+from contracts.constants import CONDITIONS
 from contracts.io import load_variants
 from models.settings import MODELS, SETTINGS
 from runner.mock import make_mock_chat
@@ -22,6 +24,15 @@ def settings_for(key):
         if name in entry:
             saved[name] = entry[name]
     return saved
+
+
+def select_variants(variants, conditions=None, conv_ids=None, limit=None):
+    """Keep only the asked conditions and conversations, then the first limit of what is left."""
+    if conditions:
+        variants = [v for v in variants if v.condition in conditions]
+    if conv_ids:
+        variants = [v for v in variants if v.conv_id in conv_ids]
+    return variants[:limit] if limit else variants
 
 
 def make_chat_for(key, base_url):
@@ -43,13 +54,15 @@ def main():
     parser.add_argument("--out", required=True, help="folder for responses.jsonl and partial.json")
     parser.add_argument("--base-url", default="http://localhost:8000/v1", help="the vLLM server (Sol models)")
     parser.add_argument("--workers", type=int, help="conversations at once. Default comes from models/settings.py")
+    parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, help="only these language types")
+    parser.add_argument("--conv-ids", nargs="+", help="only these conversations")
     parser.add_argument("--limit", type=int, help="only the first N variants, for a quick check")
     parser.add_argument("--status", action="store_true", help="show progress and exit")
     args = parser.parse_args()
 
-    variants = load_variants(args.variants)
-    if args.limit:
-        variants = variants[:args.limit]
+    variants = select_variants(load_variants(args.variants), args.conditions, args.conv_ids, args.limit)
+    if not variants:
+        sys.exit("No variants match --conditions and --conv-ids.")
 
     if args.model == "mock":
         settings = {"backend": "mock", "model_id": "mock", "temperature": 0, "max_tokens": 4096}

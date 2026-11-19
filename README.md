@@ -68,9 +68,12 @@ Run a model on a file of variants (`mock` is a fake model, so it needs no GPU):
 python3 -m runner --model mock --variants variants.jsonl --out runs/mock --limit 3
 python3 -m runner --model llama31_8b --variants variants.jsonl --out runs/llama31_8b
 python3 -m runner --model llama31_8b --variants variants.jsonl --out runs/llama31_8b --status
+python3 -m runner --model llama31_8b --variants variants.jsonl --out runs/llama31_8b --conditions EN EN_HI_EN --conv-ids S01 S02
 ```
 
-A stopped run continues where it stopped: run the same command again. Finished conversations are skipped.
+`--conditions` and `--conv-ids` run only the language types and conversations named. `--limit N` keeps the first N of what is left.
+
+A stopped run continues where it stopped: run the same command again. Finished conversations are skipped. If a setting in `models/settings.py` changes, everything is asked again, including conversations that stopped half way.
 
 On Sol, set your Hugging Face token in your terminal and submit the job for a model from `models/settings.py`:
 

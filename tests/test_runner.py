@@ -7,8 +7,9 @@ from pathlib import Path
 from contracts.check import check_response
 from contracts.io import load_responses
 from contracts.models import Variant
+from runner.__main__ import select_variants
 from runner.mock import make_mock_chat
-from runner.run import play_variant, run_all, status
+from runner.run import _partial_key, play_variant, run_all, status
 
 ROOT = Path(__file__).resolve().parent.parent
 SETTINGS = {"backend": "mock", "model_id": "mock", "temperature": 0, "max_tokens": 4096}
@@ -94,7 +95,7 @@ class RunAllTests(unittest.TestCase):
             return "short", len(messages) == 3   # the reply to turn 2 is cut off
         run_all(self.variants, chat, "mock", SETTINGS, self.out, workers=1, log=lambda m: None)
         # Pretend the run stopped after turn 3, with the cut-off reply saved in the partial file.
-        partial = {f"{self.variants[0].conv_id}|{self.variants[0].condition}|mock":
+        partial = {_partial_key(self.variants[0], "mock", SETTINGS):
                    {"replies": ["r1", "r2", "r3"], "cut_off": [False, True, False]}}
         (Path(self.out) / "responses.jsonl").unlink()
         (Path(self.out) / "partial.json").write_text(json.dumps(partial), encoding="utf-8")
@@ -102,6 +103,33 @@ class RunAllTests(unittest.TestCase):
         run_all(self.variants, again, "mock", SETTINGS, self.out, workers=1, log=lambda m: None)
         # Only turn 1 is kept. Turns 2 to 6 are asked again.
         self.assertEqual(again.calls, len(self.variants[0].turns) - 1)
+
+    def test_a_stopped_run_is_not_continued_with_new_settings(self):
+        broken = Counting(fail_on_call=4)      # three turns saved with the old settings
+        run_all(self.variants, broken, "mock", SETTINGS, self.out, workers=1, log=lambda m: None)
+        new_settings = {**SETTINGS, "max_tokens": 8192}
+        self.assertEqual(status(self.variants, "mock", new_settings, self.out)["half_way"], 0)
+        working = Counting()
+        run_all(self.variants, working, "mock", new_settings, self.out, workers=1, log=lambda m: None)
+        self.assertEqual(working.calls, len(self.variants[0].turns))   # every turn asked again
+
+
+class SelectVariantsTests(unittest.TestCase):
+    def setUp(self):
+        base = example_variant()
+        self.variants = [Variant(conv, cond, base.turns) for conv in ("S01", "S02", "S03")
+                         for cond in ("EN", "EN_HI_EN", "HI_ALL", "HI_EN_HI")]
+
+    def test_no_filters_keeps_everything(self):
+        self.assertEqual(len(select_variants(self.variants)), 12)
+
+    def test_conditions_and_conv_ids_together(self):
+        picked = select_variants(self.variants, ["EN", "HI_ALL"], ["S02"])
+        self.assertEqual([(v.conv_id, v.condition) for v in picked], [("S02", "EN"), ("S02", "HI_ALL")])
+
+    def test_limit_applies_after_the_filters(self):
+        picked = select_variants(self.variants, ["EN_HI_EN"], limit=2)
+        self.assertEqual([v.conv_id for v in picked], ["S01", "S02"])
 
 
 if __name__ == "__main__":
