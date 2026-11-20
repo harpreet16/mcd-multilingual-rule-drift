@@ -6,6 +6,7 @@
 # Run outputs can be large and are rebuilt by the pipeline
 runs/
 outputs/
+pilots/out/
 *.log
 
 # Python and editor files
