@@ -129,3 +129,39 @@ Qwen3-32B generates `<think>...</think>` reasoning blocks by default. The system
 `"You are a helpful assistant. /no_think"` switches this off. It is set in `models/settings.py`
 and passed automatically by the runner. The client also strips any thinking blocks that slip
 through and emits a warning so you can catch problems early.
+
+---
+
+## For Shashwat — using this client in the judge
+
+Import the chat function and the model ID:
+
+```python
+from models.bedrock.client import make_chat
+from models.settings import JUDGE_MODEL_ID
+
+judge_chat = make_chat(JUDGE_MODEL_ID)
+text, cut_off = judge_chat(messages)
+```
+
+**Exception handling:** the client raises two kinds of exceptions after all retries are exhausted.
+The judge must catch both and return an `ERROR` grade instead of crashing:
+
+```python
+from contracts.models import ServerUnreachable
+
+try:
+    text, _ = judge_chat(messages)
+except ServerUnreachable:
+    # Bedrock endpoint is unreachable — stop the run, do not mark as FAIL
+    raise  # let the runner handle this; it stops the whole job
+except Exception:
+    # Retries exhausted (throttling) or non-retryable API error
+    # Return ERROR grade — never FAIL, as required by the contract
+    return error_grade
+```
+
+The client already retries throttling internally (`BEDROCK_MAX_RETRIES`, default 5).
+"Retry twice then ERROR" in the judge spec refers to **parse failures** (Claude returns something
+other than YES / NO / NOT_APPLICABLE) — that is judge-level logic, not client-level.
+
