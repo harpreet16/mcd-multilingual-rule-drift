@@ -1,0 +1,12 @@
+# MCD project dependencies
+#
+# The runner, contracts and tests use only the Python standard library.
+# boto3 is only needed for Bedrock models (Llama 3.3-70B, Qwen3-32B) and the LLM judge.
+#
+# Install with:
+#   pip install -r requirements.txt
+#
+# For Sol (vLLM) you also need:
+#   pip install vllm   (in a separate environment called mcd-vllm, see models/sol/)
+
+boto3

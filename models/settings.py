@@ -40,3 +40,8 @@ MODELS = {
 # The same for every model, so results are comparable.
 # A reply that is cut off is asked again with double the tokens, up to max_tokens_cap.
 SETTINGS = {"temperature": 0, "max_tokens": 4096, "max_tokens_cap": 8192}
+
+# Claude Haiku 3.5 on Bedrock — used by grader/judge.py as the LLM judge.
+# Shashwat: import this and pass it to models.bedrock.client.make_chat().
+# Confirmed available in us-west-2. Uses an inference profile ID (us. prefix).
+JUDGE_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
