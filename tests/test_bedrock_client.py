@@ -150,18 +150,20 @@ class CutOffTests(unittest.TestCase):
 
 
 class ThrottlingTests(unittest.TestCase):
-    """ThrottlingException is retried with exponential backoff."""
+    """ThrottlingException is retried with jittered exponential backoff."""
 
-    def _chat(self, side_effects):
+    def _chat(self, side_effects, env_overrides=None):
         mock_client = MagicMock()
         mock_client.converse.side_effect = side_effects
+        env = {"AWS_DEFAULT_REGION": "us-east-1", **(env_overrides or {})}
         with _patch_boto3(mock_client):
             from importlib import reload
             import models.bedrock.client as m
             reload(m)
-            with patch("time.sleep"):
-                chat = m.make_chat("model-id", region="us-east-1")
-                return chat([{"role": "user", "content": "hi"}]), mock_client
+            with patch("time.sleep"), patch("random.uniform", return_value=0.5):
+                with patch.dict("os.environ", env):
+                    chat = m.make_chat("model-id", region="us-east-1")
+                    return chat([{"role": "user", "content": "hi"}]), mock_client
 
     def test_throttling_is_retried_and_eventually_succeeds(self):
         result, mock_client = self._chat([
@@ -189,6 +191,86 @@ class ThrottlingTests(unittest.TestCase):
             with self.assertRaises(Exception):
                 chat([{"role": "user", "content": "hi"}])
         self.assertEqual(mock_client.converse.call_count, 1)
+
+
+class ThrottlingRetryBehaviourTests(unittest.TestCase):
+    """Detailed tests for jitter, logging and env-var tuning."""
+
+    def _run(self, side_effects, env_overrides=None):
+        mock_client = MagicMock()
+        mock_client.converse.side_effect = side_effects
+        env = {"AWS_DEFAULT_REGION": "us-east-1", **(env_overrides or {})}
+        sleeps = []
+        with _patch_boto3(mock_client):
+            from importlib import reload
+            import models.bedrock.client as m
+            reload(m)
+            with patch("time.sleep", side_effect=lambda s: sleeps.append(s)):
+                with patch("random.uniform", return_value=1.0):
+                    with patch.dict("os.environ", env):
+                        chat = m.make_chat("model-id", region="us-east-1")
+                        try:
+                            result = chat([{"role": "user", "content": "hi"}])
+                        except Exception as exc:
+                            result = exc
+        return result, mock_client, sleeps
+
+    def test_jitter_is_added_to_each_wait(self):
+        # random.uniform patched to 1.0, so wait = min(60, 2**attempt + 1.0)
+        # attempt 0 → 2.0, attempt 1 → 3.0
+        _, _, sleeps = self._run([
+            _error("ThrottlingException"),
+            _error("ThrottlingException"),
+            _ok_response("done"),
+        ])
+        self.assertAlmostEqual(sleeps[0], 2.0, places=5)
+        self.assertAlmostEqual(sleeps[1], 3.0, places=5)
+
+    def test_wait_is_capped_at_bedrock_max_wait(self):
+        # 8 throttles with max_wait=5 — wait must never exceed 5
+        side_effects = [_error("ThrottlingException")] * 7 + [_ok_response("done")]
+        _, _, sleeps = self._run(side_effects, {"BEDROCK_MAX_WAIT": "5"})
+        self.assertTrue(all(s <= 5.0 + 1e-9 for s in sleeps),
+                        f"a wait exceeded max_wait=5: {sleeps}")
+
+    def test_retry_is_printed_to_stdout(self):
+        import io, sys
+        mock_client = MagicMock()
+        mock_client.converse.side_effect = [
+            _error("ThrottlingException"),
+            _ok_response("done"),
+        ]
+        with _patch_boto3(mock_client):
+            from importlib import reload
+            import models.bedrock.client as m
+            reload(m)
+            with patch("time.sleep"), patch("random.uniform", return_value=0.5):
+                with patch.dict("os.environ", {"AWS_DEFAULT_REGION": "us-east-1"}):
+                    chat = m.make_chat("model-id", region="us-east-1")
+                    captured = io.StringIO()
+                    sys.stdout = captured
+                    try:
+                        chat([{"role": "user", "content": "hi"}])
+                    finally:
+                        sys.stdout = sys.__stdout__
+        output = captured.getvalue()
+        self.assertIn("throttled", output.lower())
+        self.assertIn("model-id", output)
+        self.assertIn("1/", output)   # "attempt 1/N"
+
+    def test_default_max_retries_is_8(self):
+        # 7 throttles then success = 8 total calls, which fits within the default of 8
+        side_effects = [_error("ThrottlingException")] * 7 + [_ok_response("done")]
+        result, mock_client, _ = self._run(side_effects)
+        self.assertEqual(result[0], "done")
+        self.assertEqual(mock_client.converse.call_count, 8)
+
+    def test_bedrock_max_retries_env_var_is_respected(self):
+        # With BEDROCK_MAX_RETRIES=3, 3 throttles should exhaust retries
+        side_effects = [_error("ThrottlingException")] * 3
+        result, mock_client, _ = self._run(side_effects, {"BEDROCK_MAX_RETRIES": "3"})
+        self.assertIsInstance(result, Exception)
+        self.assertEqual(mock_client.converse.call_count, 3)
 
 
 class ServerUnreachableTests(unittest.TestCase):

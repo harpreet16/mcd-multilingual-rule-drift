@@ -4,7 +4,7 @@ Behaves like models/sol/client.py:
   - make_chat(...) returns chat(messages) -> (text, cut_off)
   - cut_off is True when the reply hit the token limit
   - ask again with double the tokens when a reply is cut off, up to max_tokens_cap
-  - retry with a growing wait when Bedrock says it is busy
+  - retry with jittered exponential backoff when Bedrock throttles
   - raise ServerUnreachable when it cannot connect at all
   - pass system_message to every call when one is set (switches Qwen thinking off)
   - strip any <think>...</think> text that leaks into the reply and warn about it
@@ -16,13 +16,27 @@ Environment variables
 AWS_ACCESS_KEY_ID       IAM access key (required)
 AWS_SECRET_ACCESS_KEY   IAM secret key (required)
 AWS_DEFAULT_REGION      Region to use (default: us-west-2)
-BEDROCK_MAX_RETRIES     How many times to retry a throttled call (default: 5)
-BEDROCK_TIMEOUT         Seconds to wait for one API call (default: 60)
+BEDROCK_MAX_RETRIES     How many times to retry a throttled call (default: 8)
+BEDROCK_MAX_WAIT        Maximum seconds to wait between retries (default: 60)
+BEDROCK_TIMEOUT         Reserved for future socket-level timeout tuning
 
 boto3 also reads AWS_SESSION_TOKEN when you use temporary credentials.
 Never set any of these in code — only in the environment or a local .env file.
+
+Throttling behaviour
+--------------------
+When Bedrock returns ThrottlingException (or related errors), the client waits
+and retries. The wait grows exponentially with jitter so that parallel workers
+do not all retry at the same moment and immediately throttle again:
+
+    wait = min(BEDROCK_MAX_WAIT, 2 ** attempt + random.uniform(0, 2))
+
+Each retry is logged to stderr so you can see it happening during a run.
+After BEDROCK_MAX_RETRIES attempts the exception is re-raised and the runner
+marks that conversation as failed (without stopping the rest of the run).
 """
 import os
+import random
 import re
 import time
 import warnings
@@ -43,7 +57,9 @@ def _make_bedrock_client(region):
     try:
         import boto3
     except ImportError as exc:
-        raise ImportError("boto3 is required for the Bedrock backend. Install it with: pip install boto3") from exc
+        raise ImportError(
+            "boto3 is required for the Bedrock backend. Install it with: pip install boto3"
+        ) from exc
     return boto3.client("bedrock-runtime", region_name=region)
 
 
@@ -76,18 +92,29 @@ def _strip_think(text):
     return cleaned.strip(), n
 
 
+def _backoff_wait(attempt, max_wait):
+    """Return seconds to wait before retry attempt, with jitter.
+
+    wait = min(max_wait, 2 ** attempt + uniform(0, 2))
+
+    Jitter prevents parallel workers from all retrying at the same moment
+    and immediately throttling each other again (thundering herd).
+
+    Examples (without jitter component):
+      attempt 0 → ~1s   attempt 3 → ~10s
+      attempt 1 → ~3s   attempt 4 → ~18s
+      attempt 2 → ~5s   attempt 7 → ~130s (capped at max_wait)
+    """
+    return min(max_wait, 2 ** attempt + random.uniform(0, 2))
+
+
 def _post_once(bedrock_client, model_id, messages, budget, temperature, system_message):
     """Make one Converse call. Return (text, cut_off).
 
     Does not retry — the caller handles that.
     Raises ServerUnreachable on connection failures.
-    Re-raises any other ClientError after extracting the error code.
+    Re-raises any other exception (including throttling) for the caller to handle.
     """
-    try:
-        import botocore.exceptions
-    except ImportError:
-        import boto3.exceptions as botocore_exceptions
-
     kwargs = {
         "modelId": model_id,
         "messages": _to_bedrock_messages(messages),
@@ -99,15 +126,12 @@ def _post_once(bedrock_client, model_id, messages, budget, temperature, system_m
     try:
         response = bedrock_client.converse(**kwargs)
     except Exception as exc:
-        # Classify the exception using the error code when available.
         code = getattr(getattr(exc, "response", None), "get", lambda k, d=None: d)("Error", {}).get("Code", "")
         if not code:
-            # Try botocore's exception structure.
             code = type(exc).__name__
         if code in ("EndpointConnectionError", "ConnectTimeoutError",
                     "ReadTimeoutError", "ConnectionClosedError"):
             raise ServerUnreachable(model_id) from exc
-        # For retryable errors the caller re-raises and retries.
         raise
 
     output_text = response["output"]["message"]["content"][0]["text"].strip()
@@ -115,32 +139,42 @@ def _post_once(bedrock_client, model_id, messages, budget, temperature, system_m
     return output_text, cut_off
 
 
+def _error_code(exc):
+    """Extract the AWS error code from an exception, falling back to the class name."""
+    try:
+        return exc.response["Error"]["Code"]  # type: ignore[attr-defined]
+    except (AttributeError, KeyError, TypeError):
+        return type(exc).__name__
+
+
 def _post_with_retry(bedrock_client, model_id, messages, budget, temperature, system_message,
-                     max_retries, max_tokens_cap):
-    """Call Bedrock with exponential backoff on throttling and cutoff doubling.
+                     max_retries, max_tokens_cap, max_wait):
+    """Call Bedrock with jittered exponential backoff on throttling and cutoff doubling.
 
     Returns (text, cut_off). The text has <think> blocks stripped.
     Raises ServerUnreachable when the endpoint cannot be reached.
-    Raises RuntimeError when retries are exhausted.
+    Raises the original exception when retries are exhausted.
+
+    Each throttle retry is printed to stderr so it is visible in the runner output.
     """
     while True:
         for attempt in range(max_retries):
             try:
                 text, cut_off = _post_once(bedrock_client, model_id, messages, budget,
                                            temperature, system_message)
-                break  # success
+                break  # success — exit the retry loop
             except ServerUnreachable:
                 raise
             except Exception as exc:
-                code = type(exc).__name__
-                # Try to get the real AWS error code.
-                try:
-                    code = exc.response["Error"]["Code"]  # type: ignore[attr-defined]
-                except (AttributeError, KeyError, TypeError):
-                    pass
+                code = _error_code(exc)
                 if code not in _RETRYABLE or attempt == max_retries - 1:
                     raise
-                wait = 2 ** attempt + 1   # 2, 3, 5, 9, ... seconds
+                wait = _backoff_wait(attempt, max_wait)
+                print(
+                    f"Bedrock throttled ({model_id}, attempt {attempt + 1}/{max_retries}), "
+                    f"waiting {wait:.1f}s ...",
+                    flush=True,
+                )
                 time.sleep(wait)
 
         # Strip thinking blocks and warn if any were found.
@@ -157,7 +191,7 @@ def _post_with_retry(bedrock_client, model_id, messages, budget, temperature, sy
             return text, False
 
         if budget >= max_tokens_cap:
-            return text, True   # still cut off or empty at the cap — return as cut off
+            return text, True   # still cut off or empty at the cap
 
         budget = min(budget * 2, max_tokens_cap)
 
@@ -171,24 +205,25 @@ def make_chat(model_id, region=None, max_tokens=4096, max_tokens_cap=8192,
     model_id        : Bedrock model ID, e.g. "us.meta.llama3-3-70b-instruct-v1:0"
     region          : AWS region. Defaults to AWS_DEFAULT_REGION env var, then "us-west-2"
     max_tokens      : Token budget for the first attempt
-    max_tokens_cap  : Maximum token budget (asked again with double if cut off, up to this)
+    max_tokens_cap  : Maximum token budget (doubled on cutoff, up to this limit)
     temperature     : Sampling temperature. Use 0 for reproducible results
     system_message  : Optional system message, e.g. "/no_think" for Qwen3 models
 
     Environment variables read
     --------------------------
     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION  (standard boto3)
-    BEDROCK_MAX_RETRIES   override the retry count (default 5)
-    BEDROCK_TIMEOUT       not used directly — boto3 config handles socket timeouts
+    BEDROCK_MAX_RETRIES   override the retry count (default 8)
+    BEDROCK_MAX_WAIT      cap the wait between retries in seconds (default 60)
     """
     effective_region = region or os.environ.get("AWS_DEFAULT_REGION", "us-west-2")
-    max_retries = int(os.environ.get("BEDROCK_MAX_RETRIES", "5"))
+    max_retries = int(os.environ.get("BEDROCK_MAX_RETRIES", "8"))
+    max_wait    = float(os.environ.get("BEDROCK_MAX_WAIT", "60"))
     bedrock_client = _make_bedrock_client(effective_region)
 
     def chat(messages):
         return _post_with_retry(
             bedrock_client, model_id, messages, max_tokens, temperature,
-            system_message, max_retries, max_tokens_cap,
+            system_message, max_retries, max_tokens_cap, max_wait,
         )
 
     return chat
