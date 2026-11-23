@@ -14,3 +14,15 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+
+# Claude Code files stay local
+CLAUDE.md
+.claude/
+
+# Intermediate files of the dataset build (see dataset/README.md)
+draft.jsonl
+
+# Editor and test caches
+.vscode/
+.idea/
+.pytest_cache/

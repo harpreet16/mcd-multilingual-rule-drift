@@ -1,0 +1,2 @@
+{"conv_id": "S035", "turn": 5, "text": "आपके उत्तर में ये कीवर्ड शामिल होने चाहिए: infrastructure, impact, pavement।", "why": "the rule checks the English keywords; the draft translated them, so the Hindi turn asked for different words (work division: any keyword a pass criterion counts stays in Latin script)"}
+{"conv_id": "S055", "turn": 5, "text": "आपके उत्तर में ये शब्द शामिल नहीं होने चाहिए: experience, volunteer, references।", "why": "the rule bans the English words; the draft translated them, so the Hindi turn banned different words"}
