@@ -11,17 +11,24 @@
 #
 # Run one model on Sol: start vLLM, run every variant, stop vLLM.
 # Usage (from the repo folder, with HF_TOKEN set):
-#   sbatch models/sol/submit.sbatch llama31_8b
+#   sbatch models/sol/submit.sbatch llama31_8b                              # default variants file
+#   sbatch models/sol/submit.sbatch llama31_8b pilots/variants.jsonl        # another variants file
+#   VARIANTS=pilots/variants.jsonl OUT=/scratch/$USER/try sbatch models/sol/submit.sbatch llama31_8b
+# Order of choice for the variants file: second argument, then $VARIANTS, then the default below.
+# Relative paths are read from the repo folder (where you ran sbatch).
 # Safe to run again: finished conversations are kept and only the rest is redone.
 set -uo pipefail
 
-KEY="$1"
-VARIANTS="${VARIANTS:-data/variants.jsonl}"
+KEY="${1:?usage: sbatch models/sol/submit.sbatch <model key> [variants file]}"
+VARIANTS="${2:-${VARIANTS:-dataset/data/variants.jsonl}}"
 OUT="${OUT:-/scratch/$USER/mcd_runs/$KEY}"
 LOGDIR="/scratch/$USER/mcd_runs"
 
 if [ -z "${HF_TOKEN:-}" ]; then echo "HF_TOKEN is not set"; exit 1; fi
 cd "$SLURM_SUBMIT_DIR" || exit 1
+# Check the file before starting vLLM, which takes minutes.
+if [ ! -f "$VARIANTS" ]; then echo "variants file not found: $VARIANTS (from $(pwd))"; exit 1; fi
+echo "variants: $VARIANTS  out: $OUT"
 mkdir -p "$LOGDIR" "$OUT"
 
 module load mamba/latest
