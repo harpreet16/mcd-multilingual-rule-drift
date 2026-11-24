@@ -5,6 +5,9 @@ Why these numbers (from the earlier runs):
   workers 16 on Sol      the earlier runs used 8 and only used 17 to 20% of the GPU's history memory.
                          vLLM queues extra requests, so more cannot crash it
   workers 4 on Bedrock   Bedrock limits how fast it can be called. Raise it if it copes
+  dtype bfloat16 on Sol  the weights are stored in bfloat16. float16 ("half") has a smaller range and can overflow,
+                         and it would also not match how the models were trained. Needs an A100 or newer
+                         (models/sol/preflight.py checks the GPU a job gets)
   Qwen3 32B on Bedrock   its weights (about 64 GB) leave only about 8 GB for history on one 80 GB GPU,
                          roughly 30,000 tokens in total, which is not enough for long Hindi conversations
 
@@ -16,15 +19,15 @@ system message below switches it off. Check the first finished replies for any <
 MODELS = {
     "qwen3_4b": {
         "model_id": "Qwen/Qwen3-4B-Instruct-2507",
-        "backend": "sol", "context_window": 65536, "workers": 16,
+        "backend": "sol", "context_window": 65536, "workers": 16, "dtype": "bfloat16",
     },
     "llama32_3b": {
         "model_id": "meta-llama/Llama-3.2-3B-Instruct",
-        "backend": "sol", "context_window": 65536, "workers": 16,
+        "backend": "sol", "context_window": 65536, "workers": 16, "dtype": "bfloat16",
     },
     "llama31_8b": {
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
-        "backend": "sol", "context_window": 65536, "workers": 16,
+        "backend": "sol", "context_window": 65536, "workers": 16, "dtype": "bfloat16",
     },
     "qwen3_32b": {
         "model_id": "qwen.qwen3-32b-v1:0",                 # Bedrock id, taken from the earlier project

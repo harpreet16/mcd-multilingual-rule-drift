@@ -6,6 +6,7 @@
   python3 -m runner --model mock --variants variants.jsonl --out runs/mock --conditions EN EN_HI_EN --conv-ids S01 S02
 """
 import argparse
+import json
 import os
 import sys
 
@@ -20,7 +21,7 @@ def settings_for(key):
     """What is saved with every response. If any of it changes, finished runs are redone."""
     entry = MODELS[key]
     saved = {"backend": entry["backend"], "model_id": entry["model_id"], **SETTINGS}
-    for name in ("context_window", "system_message"):
+    for name in ("context_window", "dtype", "system_message"):
         if name in entry:
             saved[name] = entry[name]
     return saved
@@ -73,7 +74,7 @@ def main():
         chat = None if args.status else make_chat_for(args.model, args.base_url)
 
     if args.status:
-        print(status(variants, args.model, settings, args.out))
+        print(json.dumps(status(variants, args.model, settings, args.out)))
         return
     summary = run_all(variants, chat, args.model, settings, args.out, workers)
     print(summary)

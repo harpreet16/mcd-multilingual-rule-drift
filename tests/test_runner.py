@@ -104,6 +104,34 @@ class RunAllTests(unittest.TestCase):
         # Only turn 1 is kept. Turns 2 to 6 are asked again.
         self.assertEqual(again.calls, len(self.variants[0].turns) - 1)
 
+    def test_a_half_written_responses_line_is_removed_and_redone(self):
+        # The job was killed (time limit) while appending a response.
+        run_all(self.variants, Counting(), "mock", SETTINGS, self.out, workers=1, log=lambda m: None)
+        path = Path(self.out) / "responses.jsonl"
+        path.write_text(path.read_text(encoding="utf-8") + '{"conv_id": "S0', encoding="utf-8")
+        self.assertEqual(status(self.variants, "mock", SETTINGS, self.out)["finished"], 1)   # status still works
+        again = Counting()
+        run_all(self.variants, again, "mock", SETTINGS, self.out, workers=1, log=lambda m: None)
+        self.assertEqual(again.calls, 0)                       # the finished conversation is kept
+        self.assertTrue(path.read_text(encoding="utf-8").endswith("\n"))
+        self.assertEqual(len(path.read_text(encoding="utf-8").splitlines()), 1)
+
+    def test_a_half_written_partial_file_does_not_stop_the_run(self):
+        (Path(self.out)).mkdir(parents=True, exist_ok=True)
+        (Path(self.out) / "partial.json").write_text('{"S001|EN|mock|{"rep', encoding="utf-8")
+        working = Counting()
+        summary = run_all(self.variants, working, "mock", SETTINGS, self.out, workers=1, log=lambda m: None)
+        self.assertEqual(summary["failed"], [])
+        self.assertEqual(working.calls, len(self.variants[0].turns))
+        self.assertTrue(list(Path(self.out).glob("partial.json.broken-*")))   # kept aside, not deleted
+
+    def test_status_checks_the_replies(self):
+        replies = iter(["<think>hmm</think> ok", "", "fine", "fine", "fine", "fine", "fine", "fine", "fine"])
+        run_all(self.variants, lambda m: (next(replies), False), "mock", SETTINGS, self.out, workers=1,
+                log=lambda m: None)
+        report = status(self.variants, "mock", SETTINGS, self.out)
+        self.assertEqual((report["think_text"], report["empty_replies"]), (1, 1))
+
     def test_a_stopped_run_is_not_continued_with_new_settings(self):
         broken = Counting(fail_on_call=4)      # three turns saved with the old settings
         run_all(self.variants, broken, "mock", SETTINGS, self.out, workers=1, log=lambda m: None)
