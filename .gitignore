@@ -3,6 +3,9 @@
 *.key
 *token*.txt
 
+# The judge's answer cache: rebuilt by re-asking, and it can hold model replies
+judge_cache.jsonl
+
 # Run outputs can be large and are rebuilt by the pipeline
 runs/
 outputs/

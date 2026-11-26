@@ -2,7 +2,9 @@
 
 Turns a model's replies into graded rows: `responses.jsonl` -> `grades.jsonl`.
 
-Owner: Brijesh (static checks, the dispatch, reply language). `judge.py` is Shashwat's.
+Owner: Brijesh. `judge.py` was Shashwat's in the work division; it is written here so grading is not
+blocked, against the interface the contracts already fixed. If he writes his own, it drops in and
+every test in `tests/test_judge.py` still applies.
 
 ```
 python3 -m grader --responses runs/qwen3_4b/responses.jsonl --out runs/qwen3_4b/grades.jsonl
@@ -20,7 +22,7 @@ not results.
 | `static_checks.py` | `run_static_check(rule, reply, reply_lang) -> "PASS" or "FAIL"` for the check types in the dataset |
 | `reply_language.py` | `detect_reply_language(reply) -> "en", "hi", "mixed" or "unknown"` |
 | `fake_judge.py` | A stand-in judge for tests and dry runs |
-| `judge.py` | The real LLM judge (Shashwat) |
+| `judge.py` | The LLM judge: Claude Haiku on Bedrock, with caching and retries |
 | `__main__.py` | The command line above |
 
 ## How a verdict is decided
@@ -66,4 +68,22 @@ language-leakage case, not the model forgetting the rule, and the analysis split
 - Hindi written in Latin letters with none of the function words in `reply_language.py` reads as
   English.
 
-Tests: `python3 -m unittest tests.test_static_checks tests.test_hybrid`
+## The judge
+
+Claude Haiku on Bedrock, through Harsh's client. It is shown the rule, the yes/no question and the
+conversation so far — and never the model name or the language type, so it cannot favour one arm of
+the study.
+
+All the turns asked for one rule go in a single call. On the real dataset that turns 376 asks into
+112 calls, about 3.4 turns per call, which matters when judging two models is roughly 7,000 asks.
+The cost is that a verdict on turn 4 is given while turns 5 onwards are visible. Pass
+`asks_per_call=1` for one call per turn with the transcript cut at that turn, and compare the two on
+a sample — PLAN.md asks for that comparison before the full run.
+
+Answers are cached in `judge_cache.jsonl`, keyed on the judge model, the rubric version, the rule's
+question and text, the exact transcript and the turns asked. A stopped job does not pay twice.
+Set `MCD_JUDGE_CACHE` to put the file somewhere else.
+
+An answer that cannot be read is re-asked twice and then becomes `ERROR`, never `NO`.
+
+Tests: `python3 -m unittest tests.test_static_checks tests.test_hybrid tests.test_judge`
