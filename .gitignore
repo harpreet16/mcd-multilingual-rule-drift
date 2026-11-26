@@ -7,7 +7,7 @@
 judge_cache.jsonl
 
 # Run outputs can be large and are rebuilt by the pipeline
-runs/
+#runs/
 outputs/
 pilots/out/
 *.log
