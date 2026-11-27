@@ -14,7 +14,8 @@ The decision, in order. The first line that matches wins.
 | static rule, check passes                             | PASS           | static            | no          |
 | static rule, check fails, reply is English            | FAIL           | static            | no          |
 | static rule, check fails, reply is Hindi/mixed        | the judge says | static_then_judge | yes         |
-| "both" rule (static first, then the judge confirms)   | the judge says | static_then_judge | yes         |
+| "both" rule, check passes and covers the whole rule   | PASS           | static            | no          |
+| "both" rule otherwise (the judge confirms)            | the judge says | static_then_judge | yes         |
 | "judge" rule                                          | the judge says | judge             | yes         |
 | the check itself is broken (bad settings)             | UNGRADED       | none              | no          |
 
@@ -73,6 +74,27 @@ def _skip_reason(reply, cut_off):
     return None
 
 
+# Check types where a PASS settles the rule on its own. A not_contains check that passes has
+# proved the forbidden text is absent from the whole reply; that is a fact about the string, not a
+# judgement, and a judge that disagrees is simply wrong. In the November run the judge claimed
+# commas in 63 of 63 comma-free replies. It cannot count.
+CONCLUSIVE_ON_PASS = ("not_contains",)
+
+
+def _static_pass_is_final(rule):
+    """True when a passing static check answers the whole rule, so the judge need not be asked.
+
+    Only when the check covers everything the rule asks for. "The reply does not use any commas"
+    is fully covered. "Exactly three suggestions are given and none includes the words 'pilates
+    studio'" is not: the check says nothing about the count, so a passing check leaves the first
+    half open and the judge still decides. Any rule joining two requirements with "and" is treated
+    as uncovered, which errs toward asking the judge.
+    """
+    if rule.check.get("type") not in CONCLUSIVE_ON_PASS:
+        return False
+    return " and " not in rule.text.lower()
+
+
 def plan_grades(response, variant, conversation):
     """Work out every grade that can be settled without the judge, and every ask that needs it.
 
@@ -116,6 +138,11 @@ def plan_grades(response, variant, conversation):
                                               reason=f"static check {static_result.lower()}ed"))
                     continue
                 # a static FAIL on a Hindi or mixed reply: the judge decides
+            elif rule.method == "both" and static_result == "PASS" and _static_pass_is_final(rule):
+                settled.append(_new_grade(response, rule, turn, lang, verdict="PASS",
+                                          method="static", static_result=static_result,
+                                          reason="static check passed and settles the whole rule"))
+                continue
             asks.append((rule, turn))
             pending[(rule.id, turn)] = {
                 "rule": rule, "turn": turn, "reply_lang": lang, "static_result": static_result,

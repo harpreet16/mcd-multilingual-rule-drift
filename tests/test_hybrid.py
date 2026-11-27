@@ -25,8 +25,9 @@ def make(rules, turns=None, replies=None, cut_off=None, condition="EN"):
     return conversation, variant, response
 
 
-def rule(method="judge", check=None, scope="any", from_turn=2, to_turn=None, rule_id="R1"):
-    return Rule(id=rule_id, conv_id="S001", text="a rule", stated_turn=1, from_turn=from_turn,
+def rule(method="judge", check=None, scope="any", from_turn=2, to_turn=None, rule_id="R1",
+         text="a rule"):
+    return Rule(id=rule_id, conv_id="S001", text=text, stated_turn=1, from_turn=from_turn,
                 to_turn=to_turn, method=method, check=check or {}, question="Did it?",
                 language_scope=scope)
 
@@ -112,8 +113,15 @@ class StaticTests(unittest.TestCase):
         self.assertEqual(grades[2].method, "static_then_judge")
         self.assertTrue(grades[2].escalated)
 
-    def test_a_both_rule_always_asks_the_judge(self):
-        conversation, variant, response = make([rule(method="both", check={"type": "not_contains", "text": "zebra"})])
+    def test_a_both_rule_asks_the_judge_when_the_check_cannot_settle_it(self):
+        """starts_with proves only the opening, so a passing check still goes to the judge.
+
+        Narrowed from "a both rule always asks the judge": a passing not_contains check on a
+        single-requirement rule is now final. See StaticBeatsTheJudgeTests.
+        """
+        conversation, variant, response = make(
+            [rule(method="both", text="The whole reply is wrapped in double quotation marks.",
+                  check={"type": "starts_with", "text": "reply"})])
         grades = grade_response(response, variant, conversation, judge=make_fake_judge(default="NO"))
         # the static check passes, but the judge confirms and its answer is final
         self.assertTrue(all(g.static_result == "PASS" for g in grades))
@@ -184,6 +192,62 @@ class ContractTests(unittest.TestCase):
         conversation, variant, response = make(rules)
         grades = grade_response(response, variant, conversation, judge=make_fake_judge())
         self.assertEqual([(g.rule_id, g.turn) for g in grades], [("R1", 2), ("R1", 4), ("R2", 2), ("R2", 4)])
+
+
+class StaticBeatsTheJudgeTests(unittest.TestCase):
+    """A passing not_contains check is a fact about the string, so the judge is not asked.
+
+    The judge claimed commas in 63 of 63 comma-free replies in the November run. Where the check
+    covers the whole rule, it wins; where the rule asks for something more, the judge still decides.
+    """
+
+    def test_a_passing_not_contains_check_settles_a_simple_rule(self):
+        rules = [rule(method="both", text="The reply does not use any commas.",
+                      check={"type": "not_contains", "text": ","})]
+        conversation, variant, response = make(rules, replies=["a", "no commas here", "c", "nor here"])
+        grades = grade_response(response, variant, conversation, judge=make_fake_judge(default="NO"))
+        for grade in grades:
+            self.assertEqual(grade.verdict, "PASS")
+            self.assertEqual(grade.method, "static")
+            self.assertEqual(grade.judge_result, "", "the judge should not have been asked")
+
+    def test_a_failing_not_contains_check_still_goes_to_the_judge(self):
+        rules = [rule(method="both", text="The reply does not use any commas.",
+                      check={"type": "not_contains", "text": ","})]
+        conversation, variant, response = make(rules, replies=["a", "yes, commas", "c", "here, too"])
+        grades = grade_response(response, variant, conversation, judge=make_fake_judge(default="YES"))
+        for grade in grades:
+            self.assertEqual(grade.verdict, "PASS", "the judge was asked and said YES")
+            self.assertEqual(grade.method, "static_then_judge")
+
+    def test_a_rule_with_a_second_requirement_still_goes_to_the_judge(self):
+        rules = [rule(method="both",
+                      text='Exactly three suggestions are given and none includes the words "pilates studio".',
+                      check={"type": "not_contains", "text": "pilates studio"})]
+        conversation, variant, response = make(rules, replies=["a", "one name only", "c", "two names"])
+        grades = grade_response(response, variant, conversation, judge=make_fake_judge(default="NO"))
+        for grade in grades:
+            self.assertEqual(grade.verdict, "FAIL", "the count is the judge's to check")
+            self.assertEqual(grade.method, "static_then_judge")
+
+    def test_a_passing_starts_with_check_does_not_settle_the_rule(self):
+        """starts_with only proves the opening, never that the whole reply is wrapped."""
+        rules = [rule(method="both", text="The whole reply is wrapped in double quotation marks.",
+                      check={"type": "starts_with", "text": '"'})]
+        conversation, variant, response = make(rules, replies=["a", '"opened but not closed', "c", '"x"'])
+        grades = grade_response(response, variant, conversation, judge=make_fake_judge(default="NO"))
+        for grade in grades:
+            self.assertEqual(grade.verdict, "FAIL")
+            self.assertEqual(grade.method, "static_then_judge")
+
+    def test_a_static_only_rule_is_unaffected(self):
+        rules = [rule(method="static", text="The reply does not use any commas.",
+                      check={"type": "not_contains", "text": ","})]
+        conversation, variant, response = make(rules, replies=["a", "no commas", "c", "none here"])
+        grades = grade_response(response, variant, conversation, judge=make_fake_judge(default="NO"))
+        for grade in grades:
+            self.assertEqual(grade.verdict, "PASS")
+            self.assertEqual(grade.method, "static")
 
 
 if __name__ == "__main__":
