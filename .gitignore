@@ -3,11 +3,23 @@
 *.key
 *token*.txt
 
-# The judge's answer cache: rebuilt by re-asking, and it can hold model replies
-judge_cache.jsonl
+# Run outputs: the replies, the grades and the small provenance files are committed.
+# Everything else a run leaves behind (logs, locks, superseded grades, partial reruns) is not.
+runs/*/*
+!runs/*/responses.jsonl
+!runs/*/grades.jsonl
+!runs/*/jobs.jsonl
+!runs/*/partial.json
+!runs/*/job_status.json
+!runs/figures/*.png
 
-# Run outputs can be large and are rebuilt by the pipeline
-#runs/
+# Brijesh's partial Colab rerun (181 of 400): superseded by Harpreet's complete qwen3_4b
+# run and deliberately left out of the analysis. Delete this line to commit it.
+runs/qwen3_4b_colab_mine/
+
+# The judge's answer cache: rebuilt by re-asking, and it can hold model replies.
+# Keep this line. It sits at runs/judge_cache.jsonl, which "runs/*/*" does NOT match.
+judge_cache.jsonl
 outputs/
 pilots/out/
 *.log
