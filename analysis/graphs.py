@@ -208,7 +208,8 @@ def fig_leakage_vs_drift(grades, folder):
     ax.set_axisbelow(True)
     ax.legend(fontsize=8)
     return _finish(fig, os.path.join(folder, "fig4_leakage_vs_drift.png"),
-                   "In the earlier audit 11 of 12 Llama failures after a switch were the second kind.")
+                   "Across all four models, 2,456 of 2,746 failures outside the English baseline (89%) "
+                   "happened while the model was replying in Hindi or mixed script.")
 
 
 def fig_first_lapse_turn(grades, folder):
