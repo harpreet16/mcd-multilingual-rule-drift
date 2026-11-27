@@ -3,8 +3,9 @@
 *.key
 *token*.txt
 
-# Run outputs can be large and are rebuilt by the pipeline
-#runs/
+# Run outputs: only the final replies (runs/<model>/responses.jsonl) are committed, so the grader can use them.
+runs/*/*
+!runs/*/responses.jsonl
 outputs/
 pilots/out/
 *.log
