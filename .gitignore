@@ -4,7 +4,6 @@
 *token*.txt
 
 # Run outputs: only the final replies (runs/<model>/responses.jsonl) are committed, so the grader can use them.
-# Logs, partial.json and jobs.jsonl stay local.
 runs/*/*
 !runs/*/responses.jsonl
 outputs/
