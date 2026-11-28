@@ -223,7 +223,7 @@ def fig_leakage_vs_drift(grades, folder):
                    note="Across all five models, on the 87 conversations every model completed, "
                         "2,536 of 2,945 failures outside the English baseline (86%) happened while "
                         "the model was replying in Hindi or mixed script. That share splits by "
-                        "family: 95-98% for the three Llama models, 64-71% for the two Qwen models, "
+                        "family: 95-98% for the three Llama models, 63-71% for the two Qwen models, "
                         "which do break rules in English.",
                    note_y=-0.19)
 
