@@ -3,26 +3,21 @@
 *.key
 *token*.txt
 
-# Run outputs: the replies, the grades and the small provenance files are committed.
-# Everything else a run leaves behind (logs, locks, superseded grades, partial reruns) is not.
-runs/*/*
-!runs/*/responses.jsonl
-!runs/*/grades.jsonl
-!runs/*/jobs.jsonl
-!runs/*/partial.json
-!runs/*/job_status.json
-!runs/figures/*.png
-
-# Brijesh's partial Colab rerun (181 of 400): superseded by Harpreet's complete qwen3_4b
-# run and deliberately left out of the analysis. Delete this line to commit it.
-runs/qwen3_4b_colab_mine/
-
-# The judge's answer cache: rebuilt by re-asking, and it can hold model replies.
-# Keep this line. It sits at runs/judge_cache.jsonl, which "runs/*/*" does NOT match.
-judge_cache.jsonl
+# Run outputs: all of it is committed. The team decided on 2026-11-27 to keep the
+# whole record in the repo, not just the replies and grades, so that anyone can
+# redo the analysis without re-running a model or re-paying the judge. That means
+# the run logs, the judge's answer cache and the superseded pre-fix grades go in too.
+#
+# Two things are still left out, and only these two:
+#   - lock files, which hold a dead process id and nothing else
+#   - the scratch output folders below, which no run writes to
+runs/*/job.lock
 outputs/
 pilots/out/
+
+# Stray logs anywhere else stay out; the ones inside runs/ are provenance and go in.
 *.log
+!runs/**/*.log
 
 # Python and editor files
 __pycache__/
