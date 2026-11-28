@@ -82,7 +82,9 @@ a sample — PLAN.md asks for that comparison before the full run.
 
 Answers are cached in `judge_cache.jsonl`, keyed on the judge model, the rubric version, the rule's
 question and text, the exact transcript and the turns asked. A stopped job does not pay twice.
-Set `MCD_JUDGE_CACHE` to put the file somewhere else.
+Set `MCD_JUDGE_CACHE` to put the file somewhere else. The default is `runs/judge_cache.jsonl`,
+which is the committed cache; it is relative to the working directory, so run the grader from the
+repository root or set the variable.
 
 An answer that cannot be read is re-asked twice and then becomes `ERROR`, never `NO`.
 

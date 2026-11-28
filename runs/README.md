@@ -103,7 +103,39 @@ Two of these need care.
 10 verdicts out of 3,768. Small, but these files are the *wrong* numbers sitting next to the right
 ones, under a name a careless glob will match. They are kept only so the fix can be audited.
 
-**`judge_cache.jsonl`** is worth the 1.4 MB: it holds all 3,333 judge answers, so re-running the
-grader costs nothing and returns exactly the same verdicts. Deleting it does not lose data, it just
-means paying Bedrock again. It is append-only, so expect it to show up in diffs after any grading
-run.
+**`judge_cache.jsonl`** is worth the space: it holds all 4,146 judge answers across the five
+models, so re-running the grader costs nothing and returns exactly the same verdicts. Deleting it
+does not lose data, it just means paying Bedrock again. It is append-only, so expect it to show up
+in diffs after any grading run.
+
+An earlier version of this file claimed 3,333 answers and that re-grading was free for every model.
+That was wrong for `qwen3_32b`, and the reason is worth recording.
+
+## The qwen3_32b rubric_version correction
+
+`qwen3_32b/grades.jsonl` originally recorded a blank `rubric_version` on all 3,609 rows, where the
+other four models record `v1`. Two separate mistakes, one harmless and one not:
+
+**Harmless: the rubric was never different.** `rubric_version` is a label passed on the command
+line; it is not part of the judge's prompt. `build_prompt(rule, conversation_text, turns)` does not
+take it, and the rubric itself is `HOUSE_RULES`, a constant in `grader/judge.py`. That file was
+byte-identical between the commit that graded the four models and the one that graded qwen3_32b, and
+has not changed since. The judge saw the same instructions for all five models.
+
+**Not harmless: the run wrote its cache to the wrong place.** `CACHE_PATH` defaulted to
+`judge_cache.jsonl` relative to the working directory, and `.env` does not set `MCD_JUDGE_CACHE`, so
+the qwen3_32b grading wrote 813 answers to a second cache at the repository root that was never
+committed. Four models had 99.8-100% of their judge calls in the committed cache; qwen3_32b had
+0.2%. The default is now `runs/judge_cache.jsonl` so this cannot happen again.
+
+**The fix, and why it is not a hand-edit.** The 813 answers were re-keyed from `rubric_version=""`
+to `"v1"` and merged into the committed cache. The cache key is a lookup address — a SHA-256 over
+the judge model, rubric version, rule, transcript and turns — so re-keying changes where an answer
+is filed, never what it says. The grader was then re-run with `--rubric-version v1`, which made
+**zero new judge calls** because every ask hit the cache. So `grades.jsonl` records `v1` because the
+grader wrote it, not because anyone edited the file.
+
+The re-run is its own check: comparing the 3,609 rows before and after, the only field that changed
+was `rubric_version` (3,235 rows), and **no verdict changed**. The 374 rows still blank are the ones
+the judge was never asked about, which is also true of `judge_model` on the same 374 rows and
+matches the other four models.

@@ -40,7 +40,11 @@ import re
 from contracts.models import Grade, ServerUnreachable
 from models.settings import JUDGE_MODEL_ID
 
-CACHE_PATH = os.environ.get("MCD_JUDGE_CACHE", "judge_cache.jsonl")
+# Default to the committed cache under runs/. It used to be "judge_cache.jsonl", which is
+# relative to the working directory: a run started without MCD_JUDGE_CACHE set quietly wrote
+# a SECOND cache at the repo root and shared nothing with the committed one. That happened to
+# the qwen3_32b grading run, which paid for 813 judge calls that were already answered.
+CACHE_PATH = os.environ.get("MCD_JUDGE_CACHE", os.path.join("runs", "judge_cache.jsonl"))
 PARSE_ATTEMPTS = 3          # the first ask plus two re-asks, then ERROR
 JUDGE_MAX_TOKENS = 1024
 
@@ -201,7 +205,7 @@ def judge_response(response, variant, asks, rubric_version="", chat=None, cache=
     """Return one Grade for every (rule, turn) pair in asks.
 
     chat           a chat(messages) -> (text, cut_off) function. Defaults to Claude Haiku on Bedrock
-    cache          a Cache. Defaults to the file at MCD_JUDGE_CACHE or judge_cache.jsonl
+    cache          a Cache. Defaults to the file at MCD_JUDGE_CACHE or runs/judge_cache.jsonl
     asks_per_call  turns per call for one rule. None groups them all into one call; 1 sends each turn
                    on its own with the transcript cut at that turn
     """
