@@ -3,12 +3,21 @@
 *.key
 *token*.txt
 
-# Run outputs: only the final replies (runs/<model>/responses.jsonl) are committed, so the grader can use them.
-runs/*/*
-!runs/*/responses.jsonl
+# Run outputs: all of it is committed. The team decided on 2026-11-27 to keep the
+# whole record in the repo, not just the replies and grades, so that anyone can
+# redo the analysis without re-running a model or re-paying the judge. That means
+# the run logs, the judge's answer cache and the superseded pre-fix grades go in too.
+#
+# Two things are still left out, and only these two:
+#   - lock files, which hold a dead process id and nothing else
+#   - the scratch output folders below, which no run writes to
+runs/*/job.lock
 outputs/
 pilots/out/
+
+# Stray logs anywhere else stay out; the ones inside runs/ are provenance and go in.
 *.log
+!runs/**/*.log
 
 # Python and editor files
 __pycache__/
