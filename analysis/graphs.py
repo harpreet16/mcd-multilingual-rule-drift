@@ -32,6 +32,7 @@ Where metrics is not built yet, fig3 draws the grid without the label column and
 import argparse
 import json
 import os
+import textwrap
 from collections import Counter, defaultdict
 
 import matplotlib
@@ -76,6 +77,10 @@ def _value(results, model, condition, key):
 def _finish(fig, path, note=None, note_y=-0.02):
     """Save the figure. A note goes below everything: short figures need a bigger drop."""
     if note:
+        # Wrap to the figure's own width: an unwrapped note runs off the side of a wide figure.
+        # About 95 characters per 10 inches keeps it readable at fontsize 7.
+        width = max(60, int(fig.get_size_inches()[0] * 9.5))
+        note = "\n".join(textwrap.wrap(note, width))
         # bbox_inches="tight" grows the saved image to include text placed outside the axes.
         fig.text(0.01, note_y, note, fontsize=7, color="#555555", va="top")
     fig.savefig(path, dpi=200, bbox_inches="tight")
@@ -187,12 +192,12 @@ def fig_leakage_vs_drift(grades, folder):
         return None
     models = sorted({m for m, _ in fails})
     conditions = [c for c in CONDITIONS if any((m, c) in fails for m in models)]
-    fig, ax = plt.subplots(figsize=(max(8, 1.7 * len(models) * max(1, len(conditions)) / 2), 4.4))
+    fig, ax = plt.subplots(figsize=(max(8, 1.25 * len(models) * max(1, len(conditions)) / 2), 4.6))
     labels, english, hindi = [], [], []
     for model in models:
         for condition in conditions:
             counts = fails.get((model, condition), Counter())
-            labels.append(f"{model}\n{condition}")
+            labels.append(condition)           # the model is named once, under its group
             english.append(counts["replied in English"])
             hindi.append(counts["replied in Hindi or mixed"])
     x = range(len(labels))
@@ -201,6 +206,13 @@ def fig_leakage_vs_drift(grades, folder):
            label="replied in Hindi or mixed — pulled into the other language")
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels, fontsize=7, rotation=45, ha="right")
+    # one model name per group of language types, and a divider between groups
+    for i, model in enumerate(models):
+        middle = i * len(conditions) + (len(conditions) - 1) / 2
+        ax.text(middle, -0.17, model, transform=ax.get_xaxis_transform(),
+                ha="center", va="top", fontsize=8, fontweight="bold")
+        if i:
+            ax.axvline(i * len(conditions) - 0.5, color="#CCCCCC", linewidth=0.8, zorder=0)
     ax.set_ylabel("failed rule turns")
     ax.margins(y=0.22)                       # headroom so the legend never sits on a bar
     ax.set_title("Two different failures: forgetting the rule, or drifting into the other language", fontsize=12)
@@ -208,8 +220,12 @@ def fig_leakage_vs_drift(grades, folder):
     ax.set_axisbelow(True)
     ax.legend(fontsize=8)
     return _finish(fig, os.path.join(folder, "fig4_leakage_vs_drift.png"),
-                   "Across all four models, 2,456 of 2,746 failures outside the English baseline (89%) "
-                   "happened while the model was replying in Hindi or mixed script.")
+                   note="Across all five models, on the 87 conversations every model completed, "
+                        "2,536 of 2,945 failures outside the English baseline (86%) happened while "
+                        "the model was replying in Hindi or mixed script. That share splits by "
+                        "family: 95-98% for the three Llama models, 64-71% for the two Qwen models, "
+                        "which do break rules in English.",
+                   note_y=-0.19)
 
 
 def fig_first_lapse_turn(grades, folder):
